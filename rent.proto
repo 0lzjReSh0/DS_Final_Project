@@ -1,0 +1,87 @@
+syntax = "proto3";
+
+package rent;
+
+service RentalService {
+  rpc GetRentalInfo(RegionRequest) returns (RentalList) {}  
+  rpc CommunicateWithOwner(OwnerQuery) returns (OwnerInfo) {}  
+  rpc GetRentalDetails(RentalQuery) returns (RentalInfo) {}
+  rpc IsLandlordOnline(OwnerQuery) returns (OwnerOnlineStatus) {}
+  rpc StartChat(ChatInitiationRequest) returns (stream ChatMessage) {}
+  rpc StartRealTimeChat(stream ChatMessage) returns (stream ChatMessage) {}
+  rpc GetMyRentals(UserRequest) returns (RentalList) {}
+  rpc GetAllMessages(UserRequest) returns (MessageList) {}
+  rpc DeleteRental(RentalDeleteRequest) returns (ActionResponse) {}
+  rpc AddRental(RentalEntry) returns (ActionResponse) {}
+}
+
+message RegionRequest {
+  string region = 1; 
+}
+message RentalDeleteRequest {
+    string name = 1;
+    string username = 2;
+}
+message ActionResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message RentalList {
+  repeated RentalEntry entries = 1;
+}
+message MessageList {
+    repeated Message messages = 1;
+}
+
+message RentalInfo {
+    string name = 1;
+    string price = 2;
+    string location = 3;
+    string owner = 4;
+    string description = 5;
+    string ownerInfo = 6;
+}
+
+message RentalEntry {
+  string name = 1;
+  int32 price = 2;
+  string location = 3;
+  string owner = 4;
+  string description = 5;
+  string region = 6; 
+}
+
+message OwnerQuery {
+    string ownerName = 1;
+}
+message RentalQuery {
+  string name = 1;
+}
+
+message OwnerOnlineStatus {
+  bool isOnline = 1;
+}
+message UserRequest {
+    string username = 1;
+}
+message ChatInitiationRequest {
+  string ownerName = 1;
+  string userName = 2;
+}
+
+message ChatMessage {
+  string Source = 1;
+  string message = 2;
+}
+message Message {
+    string sender = 1;
+    string content = 2;
+    string timestamp = 3; 
+}
+
+
+message OwnerInfo {
+  string name = 1;
+  string contact = 2; 
+}
