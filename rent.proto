@@ -21,6 +21,7 @@ message RegionRequest {
 message RentalDeleteRequest {
     string name = 1;
     string username = 2;
+    string region = 3;
 }
 message ActionResponse {
     bool success = 1;

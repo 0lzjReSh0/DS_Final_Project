@@ -14,7 +14,7 @@ def send_message():
         with psycopg2.connect(host="localhost", database="DS", user="postgres", password="020603") as conn:
             with conn.cursor() as cursor:
                 cursor.execute(
-                    "INSERT INTO messages (sender, recipient, content, read) VALUES (%s, %s, %s, %s)",
+                    "INSERT INTO messagesB (sender, recipient, content, read) VALUES (%s, %s, %s, %s)",
                     (data['sender'], data['recipient'], data['content'], False)
                 )
                 conn.commit()
@@ -36,7 +36,7 @@ def get_messages():
             for row in rows:
                 messages.append({'sender': row[0], 'content': row[1], 'timestamp': row[2]})
                 cursor.execute(
-                    "UPDATE messages SET read = TRUE WHERE recipient = %s AND sender = %s",
+                    "UPDATE messagesB SET read = TRUE WHERE recipient = %s AND sender = %s",
                     (recipient, row[0])
                 )
                 conn.commit()
@@ -61,17 +61,17 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
                 getattr(stub, method)(data)
         except grpc.RpcError as e:
             print(f"Error pushing data to peer at {peer_address}: {e}")
-            
+                
     def DeleteRental(self, request, context):
         try:
-            if request.region == "B district":
-                table = "rentB"  
+            if request.region == "A district":
+                table = "rent"  
                 self.cursor.execute(f"DELETE FROM {table} WHERE name = %s AND owner = %s", (request.name, request.username))
                 self.conn.commit()
                 
-                self.push_data_to_peer("DeleteRental", request, peer_address='localhost:8001')
+                self.push_data_to_peer("DeleteRental", request, peer_address='localhost:8000')
             else:
-                table = "rent"  
+                table = "rentB"  
                 self.cursor.execute(f"DELETE FROM {table} WHERE name = %s AND owner = %s", (request.name, request.username))
                 self.conn.commit()
             return rent_pb2.ActionResponse(success=True)
@@ -81,17 +81,17 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
 
     def AddRental(self, request, context):
         try:
-            if request.region == "B district":
-                table = "rentB"  
+            if request.region == "A district":
+                table = "rent"  
                 self.cursor.execute(
                     f"INSERT INTO {table} (name, price, location, owner, description, region) VALUES (%s, %s, %s, %s, %s, %s)",
                     (request.name, request.price, request.location, request.owner, request.description, request.region)
                 )
                 self.conn.commit()
 
-                self.push_data_to_peer("AddRental", request, peer_address='localhost:8001')
+                self.push_data_to_peer("AddRental", request, peer_address='localhost:8000')
             else:
-                table = "rent"  
+                table = "rentB"  
                 self.cursor.execute(
                     f"INSERT INTO {table} (name, price, location, owner, description, region) VALUES (%s, %s, %s, %s, %s, %s)",
                     (request.name, request.price, request.location, request.owner, request.description, request.region)
@@ -106,7 +106,7 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
         messages = []
         try:
             self.cursor.execute(
-                "SELECT sender, content, timestamp FROM messages_all WHERE recipient = %s",
+                "SELECT sender, content, timestamp FROM messagesB WHERE recipient = %s",
                 (request.username,)
             )
             rows = self.cursor.fetchall()
@@ -122,10 +122,9 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
     def GetMyRentals(self, request, context):
         try:
             self.cursor.execute("BEGIN;")  
-            self.cursor.execute("SELECT name, price, location, description FROM rent_all WHERE owner = %s", (request.username,))
+            self.cursor.execute("SELECT name, price, location, description FROM rentB WHERE owner = %s", (request.username,))
             rows = self.cursor.fetchall()
             rentals = [rent_pb2.RentalEntry(name=row[0], price=row[1], location=row[2], description=row[3]) for row in rows]
-            print(rentals)
             self.cursor.execute("COMMIT;") 
             return rent_pb2.RentalList(entries=rentals)
         except Exception as e:
@@ -139,7 +138,7 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
         try:
             for entry in request.entries:
                 self.cursor.execute(
-                    "INSERT INTO rent (name, price, location, owner, description) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (name) DO UPDATE SET price = EXCLUDED.price, location = EXCLUDED.location, owner = EXCLUDED.owner, description = EXCLUDED.description",
+                    "INSERT INTO rentB (name, price, location, owner, description) VALUES (%s, %s, %s, %s, %s) ON CONFLICT (name) DO UPDATE SET price = EXCLUDED.price, location = EXCLUDED.location, owner = EXCLUDED.owner, description = EXCLUDED.description",
                     (entry.name, entry.price, entry.location, entry.owner, entry.description)
                 )
             self.conn.commit()
@@ -151,7 +150,7 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
         
     def GetRentalInfo(self, request, context):
         try:
-            query = "SELECT name, price, location, region FROM rent WHERE region = 'A district'"
+            query = "SELECT name, price, location, region FROM rentB WHERE region = 'B district'"
             if request.region == "all":
                 query = "SELECT name, price, location FROM rent_all"
             self.cursor.execute(query, (request.region,))
@@ -194,7 +193,7 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
     def GetRentalDetails(self, request, context):
         try:
             
-            query = "SELECT name, price, location, owner, description FROM rent WHERE name = %s"
+            query = "SELECT name, price, location, owner, description FROM rentB WHERE name = %s"
             self.cursor.execute(query, (request.name,))
             row = self.cursor.fetchone()
             if row:
@@ -222,7 +221,7 @@ class RentalServiceServicer(rent_pb2_grpc.RentalServiceServicer):
 def run_grpc_server():
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     rent_pb2_grpc.add_RentalServiceServicer_to_server(RentalServiceServicer(), server)
-    server.add_insecure_port('[::]:8000')
+    server.add_insecure_port('[::]:8001')
     server.start()
     try:
         server.wait_for_termination()
@@ -231,7 +230,7 @@ def run_grpc_server():
         
     
 def run_flask_app():
-    app.run(debug=True, port=5000, use_reloader=False)
+    app.run(debug=True, port=5001, use_reloader=False)
     
 if __name__ == '__main__':
     grpc_thread = threading.Thread(target=run_grpc_server)
